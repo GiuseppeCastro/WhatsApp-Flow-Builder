@@ -7,7 +7,7 @@ const server = app.listen(env.PORT, () => {
   logger.info(`Environment: ${env.NODE_ENV}`);
 });
 
-// Graceful shutdown
+// shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down gracefully');
   server.close(() => {

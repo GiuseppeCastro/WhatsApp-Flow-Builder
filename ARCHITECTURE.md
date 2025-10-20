@@ -1,99 +1,50 @@
-# Architecture
+# Architecture Overview
 
-## Overview
-Visual workflow builder for WhatsApp marketing automation. Drag-and-drop interface for creating automated campaigns.
+## Stack
 
-## Tech Stack
+- Frontend: Next.js 14 + React Flow + Tailwind
+- Backend: Express + TypeScript
+- Storage: In-memory (simple Map objects)
 
-**Frontend:** Next.js 14, TypeScript, React Flow, Tailwind CSS
-
-**Backend:** Node.js, Express, TypeScript, in-memory storage
-
-## Design Decisions
-
-### Why In-Memory Storage?
-Using simple in-memory data structures instead of a database. Good for MVP and demos, but data gets wiped on restart. Easy to swap for MongoDB/Postgres later.
+## Key Components
 
 ### Execution Engine
-Built an event-driven system with three main parts:
-- **Scheduler** - handles delays between actions
-- **Engine** - runs through the flow and executes nodes
-- **State Store** - keeps track of what's running
+The flow executor handles node traversal and state management:
+- **Engine**: Processes nodes sequentially, handles branching
+- **Scheduler**: Manages delays with setTimeout
+- **Evaluators**: Evaluates AND/OR conditional logic
+- **State Store**: Tracks what's completed and what's pending
 
-This lets flows branch out in parallel and makes debugging easier.
+### Flow Validation
+Validates flows before save/execution:
+- Must have at least one TRIGGER node
+- No invalid edge references
+- No self-loops or duplicate IDs
+- All node configs properly formatted
 
-### Validation
-Flows get validated twice - once in the browser for instant feedback, and again on the server before saving. Checks for broken connections, missing configs, and invalid logic.
+### Mock Services
+Since this is a demo, external APIs are mocked:
+- WhatsApp messages just get logged
+- Order/customer updates stored in memory
+- Easy to swap with real integrations later
 
-### Mocked Services
-All external APIs (WhatsApp, orders, customers) are mocked with fake endpoints. Makes development easier and demos more reliable. Everything just logs what it would've done.
-
-### Conditional Logic
-Supports AND/OR conditions with basic operators (equals, greater than, contains, etc). Flexible enough for real use cases without being overly complex.
-
-## How It Works
-
-**Creating a Flow:**
-User edits in UI → validates → saves to memory → gets an ID back
-
-**Running a Flow:**
-Trigger fires → loads flow → starts execution → processes each node → evaluates conditions → executes actions → moves to next nodes → repeats until done
-
-**Execution State:**
-Tracks which nodes are running, which are done, what's scheduled for later, and all the context/data from the trigger.
-
-## Project Structure
+## Data Flow
 
 ```
-textyess_assignment/
-├── backend/
-│   └── src/
-│       ├── controllers/     # Request handlers
-│       ├── services/        # Business logic
-│       │   └── execution/   # Execution engine components
-│       ├── repositories/    # Data access (memoryStore)
-│       ├── validators/      # Flow validation logic
-│       ├── routes/          # API routes
-│       └── types/           # TypeScript schemas
-│
-└── frontend/
-    └── src/
-        ├── app/             # Next.js pages
-        ├── components/      # React components
-        ├── lib/             # API client & utilities
-        └── types/           # TypeScript schemas
-
+User creates flow → Validation → Save to memory
+Trigger event → Load flow → Execute nodes → Update state
 ```
 
-## API Endpoints
+## Why These Choices?
 
-**Flows:** CRUD operations + activate/deactivate
-- `POST /api/flows` - create
-- `GET /api/flows` - list all
-- `GET /api/flows/:id` - get one
-- `PUT /api/flows/:id` - update
-- `DELETE /api/flows/:id` - delete
-- `POST /api/flows/:id/activate` 
-- `POST /api/flows/:id/deactivate`
+**In-memory storage**: Keeps it simple for an MVP, no DB setup needed  
+**setTimeout for delays**: Good enough for demo, would use a job queue in production  
+**Mocked services**: No API keys needed, reproducible demos
 
-**Triggers:** `POST /api/triggers/:type` - fire a trigger
+## Production Considerations
 
-**Executions:** List and view execution history
-- `GET /api/executions`
-- `GET /api/executions/:id`
-
-## TODO / Improvements
-
-**Next steps:**
-- Add a real database
-- Use a proper job queue (Bull/BullMQ)
-- Better error handling
-- Write tests
-
-**Eventually:**
-- Real WhatsApp Business API
-- Template library
-- Analytics dashboard
-- Multi-tenant support
-- Webhooks
-- Flow versioning
+For a real deployment you'd want:
+- Postgres or MongoDB for persistence
+- Redis + Bull for reliable job scheduling  
+- Real WhatsApp Business API integration
+- Proper auth and monitoring
