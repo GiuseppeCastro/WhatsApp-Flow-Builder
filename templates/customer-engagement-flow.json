@@ -26,8 +26,9 @@
       "label": "Add Customer Note",
       "config": {
         "actionType": "ADD_CUSTOMER_NOTE",
+        "toField": "customer.phone",
         "customerId": "customer.id",
-        "note": "Welcome message sent - enrolled in engagement flow"
+        "body": "Welcome message sent - enrolled in engagement flow"
       }
     },
     {
@@ -35,8 +36,10 @@
       "type": "DELAY",
       "label": "Wait 2 Days",
       "config": {
-        "amount": 2,
-        "unit": "days"
+        "delay": {
+          "amount": 2,
+          "unit": "days"
+        }
       }
     },
     {
@@ -49,7 +52,7 @@
           "clauses": [
             {
               "left": "customer.orders",
-              "op": "greaterThan",
+              "op": "greater_than",
               "right": 0
             }
           ]

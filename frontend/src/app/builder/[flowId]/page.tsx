@@ -28,6 +28,7 @@ export default function BuilderPage(): JSX.Element {
   const params = useParams();
   const flowId = params.flowId as string;
 
+  // Custom node types with our styled components
   const nodeTypes = useMemo(() => ({
     custom: CustomNode,
   }), []);
@@ -37,7 +38,7 @@ export default function BuilderPage(): JSX.Element {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null);
-  const [validationErrors, setValidationErrors] = useState<any[]>([]);
+  const [validationResult, setValidationResult] = useState<any>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -58,6 +59,7 @@ export default function BuilderPage(): JSX.Element {
 
   const onConnect = useCallback(
     (connection: Connection) => {
+      // Client-side validation
       if (connection.source === connection.target) {
         toast.error('Self-loops are not allowed');
         return;
@@ -76,14 +78,23 @@ export default function BuilderPage(): JSX.Element {
   async function handleSave(): Promise<void> {
     if (!flow) return;
 
+    const flowNodes = convertFromRFNodes(nodes);
+    const flowEdges = convertFromRFEdges(edges);
+
+    const emptyLabelNodes = flowNodes.filter(n => !n.label || n.label.trim() === '');
+    if (emptyLabelNodes.length > 0) {
+      toast.error('Cannot save: Some nodes have empty labels');
+      return;
+    }
+
     setSaving(true);
     try {
       const updated = await api.updateFlow(flowId, {
-        nodes: convertFromRFNodes(nodes),
-        edges: convertFromRFEdges(edges),
+        nodes: flowNodes,
+        edges: flowEdges,
       });
       setFlow(updated);
-      toast.success('Flow saved');
+      toast.success('Flow saved successfully');
     } catch (error: any) {
       toast.error(error.message || 'Failed to save flow');
     } finally {
@@ -94,26 +105,36 @@ export default function BuilderPage(): JSX.Element {
   async function handleValidate(): Promise<void> {
     try {
       const result = await api.validateFlow(flowId);
-      setValidationErrors(result.errors);
+      setValidationResult(result);
       if (result.valid) {
-        toast.success('Flow is valid');
+        toast.success('Flow validation passed');
       } else {
-        const errorCount = result.errors.filter((e) => e.severity === 'error').length;
-        toast.error(`Validation failed: ${errorCount} errors`);
+        const errorCount = result.errors.filter((e: any) => e.severity === 'error').length;
+        toast.error(`Validation failed: ${errorCount} errors found`);
       }
     } catch (error) {
-      toast.error('Validation failed');
+      toast.error('Validation request failed');
     }
   }
 
   async function handleActivate(): Promise<void> {
     if (!flow) return;
+    
     try {
+      const validationResult = await api.validateFlow(flowId);
+      
+      if (!validationResult.valid) {
+        const errorCount = validationResult.errors.filter((e: any) => e.severity === 'error').length;
+        toast.error(`Cannot activate: Flow has ${errorCount} validation error${errorCount !== 1 ? 's' : ''}`);
+        setValidationResult(validationResult);
+        return;
+      }
+      
       const updated = await api.activateFlow(flowId);
       setFlow(updated);
-      toast.success('Flow activated');
+      toast.success('Flow activated successfully');
     } catch (error: any) {
-      toast.error(error.message || 'Failed to activate');
+      toast.error(error.message || 'Failed to activate flow');
     }
   }
 
@@ -154,7 +175,7 @@ export default function BuilderPage(): JSX.Element {
               data: { 
                 ...updated,
                 id: updated.id,
-                type: updated.type,
+                type: updated.type, // Ensure type is preserved for colors
               } 
             } 
           : n
@@ -181,10 +202,85 @@ export default function BuilderPage(): JSX.Element {
     }
   }
 
+  function handleAutoLayout(): void {
+    const flowNodes = convertFromRFNodes(nodes);
+    const flowEdges = convertFromRFEdges(edges);
+
+    const triggerNodes = flowNodes.filter((n) => n.type === 'TRIGGER');
+    if (triggerNodes.length === 0) {
+      toast.error('No trigger nodes to organize');
+      return;
+    }
+
+    const positioned = new Map<string, { x: number; y: number; level: number }>();
+    const levelWidth = 300;
+    const levelHeight = 150;
+    const nodeSpacing = 100;
+    let currentLevel = 0;
+
+    function calculateLevel(nodeId: string, level: number = 0): number {
+      if (positioned.has(nodeId)) {
+        return positioned.get(nodeId)!.level;
+      }
+
+      const outgoing = flowEdges.filter((e) => e.source === nodeId);
+      if (outgoing.length === 0) {
+        return level;
+      }
+
+      let maxChildLevel = level;
+      for (const edge of outgoing) {
+        const childLevel = calculateLevel(edge.target, level + 1);
+        maxChildLevel = Math.max(maxChildLevel, childLevel);
+      }
+      return maxChildLevel;
+    }
+
+    function layoutNode(nodeId: string, level: number, parentY: number = 0): void {
+      if (positioned.has(nodeId)) return;
+
+      const node = flowNodes.find((n) => n.id === nodeId);
+      if (!node) return;
+
+      const nodesAtLevel = Array.from(positioned.values()).filter((p) => p.level === level).length;
+      
+      const y = parentY !== 0 ? parentY : nodesAtLevel * (levelHeight + nodeSpacing);
+      const x = level * levelWidth;
+
+      positioned.set(nodeId, { x, y, level });
+
+      const outgoing = flowEdges.filter((e) => e.source === nodeId);
+      
+      if (outgoing.length === 1) {
+        layoutNode(outgoing[0].target, level + 1, y);
+      } else if (outgoing.length > 1) {
+        outgoing.forEach((edge, index) => {
+          const branchY = y + (index - (outgoing.length - 1) / 2) * (levelHeight + nodeSpacing);
+          layoutNode(edge.target, level + 1, branchY);
+        });
+      }
+    }
+
+    triggerNodes.forEach((trigger, index) => {
+      layoutNode(trigger.id, 0, index * (levelHeight * 2 + nodeSpacing));
+    });
+
+    const updatedNodes = nodes.map((node) => {
+      const pos = positioned.get(node.id);
+      if (pos) {
+        return { ...node, position: { x: pos.x, y: pos.y } };
+      }
+      return node;
+    });
+
+    setNodes(updatedNodes);
+    toast.success('Layout organized');
+  }
+
   function handleAddNode(type: string): void {
     const newNode: RFNode = {
       id: `node_${Date.now()}`,
-      type: 'custom',
+      type: 'custom', // Use custom node type to apply colors
       position: { x: Math.random() * 400, y: Math.random() * 400 },
       data: { 
         id: `node_${Date.now()}`,
@@ -194,84 +290,6 @@ export default function BuilderPage(): JSX.Element {
       },
     };
     setNodes((nds) => [...nds, newNode]);
-  }
-
-  function handleAutoOrganize(): void {
-    if (nodes.length === 0) return;
-
-    const adjacencyList: Record<string, string[]> = {};
-    nodes.forEach(n => adjacencyList[n.id] = []);
-    edges.forEach(e => {
-      if (e.source && adjacencyList[e.source]) {
-        adjacencyList[e.source].push(e.target!);
-      }
-    });
-
-    const triggerNodes = nodes.filter(n => n.data.type === 'TRIGGER');
-    if (triggerNodes.length === 0) {
-      toast.error('No trigger node found to organize from');
-      return;
-    }
-
-    const levels: Record<string, number> = {};
-    const visited = new Set<string>();
-    const queue: { id: string; level: number }[] = [];
-
-    triggerNodes.forEach(trigger => {
-      queue.push({ id: trigger.id, level: 0 });
-      visited.add(trigger.id);
-      levels[trigger.id] = 0;
-    });
-
-    let maxLevel = 0;
-    while (queue.length > 0) {
-      const { id, level } = queue.shift()!;
-      const children = adjacencyList[id] || [];
-      
-      children.forEach(childId => {
-        if (!visited.has(childId)) {
-          visited.add(childId);
-          levels[childId] = level + 1;
-          maxLevel = Math.max(maxLevel, level + 1);
-          queue.push({ id: childId, level: level + 1 });
-        }
-      });
-    }
-
-    const nodesByLevel: Record<number, RFNode[]> = {};
-    nodes.forEach(node => {
-      const level = levels[node.id] ?? maxLevel + 1;
-      if (!nodesByLevel[level]) nodesByLevel[level] = [];
-      nodesByLevel[level].push(node);
-    });
-
-    // Layout parameters
-    const HORIZONTAL_SPACING = 250;
-    const VERTICAL_SPACING = 150;
-    const START_X = 100;
-    const START_Y = 100;
-
-    // Position nodes
-    const organizedNodes = nodes.map(node => {
-      const level = levels[node.id] ?? maxLevel + 1;
-      const nodesInLevel = nodesByLevel[level];
-      const indexInLevel = nodesInLevel.indexOf(node);
-      const totalInLevel = nodesInLevel.length;
-
-      // Center nodes in their level
-      const offsetX = (totalInLevel - 1) * HORIZONTAL_SPACING / 2;
-      
-      return {
-        ...node,
-        position: {
-          x: START_X + (indexInLevel * HORIZONTAL_SPACING) - offsetX + (level * 50), // Slight offset per level
-          y: START_Y + (level * VERTICAL_SPACING),
-        },
-      };
-    });
-
-    setNodes(organizedNodes);
-    toast.success('Nodes organized automatically');
   }
 
   if (!flow) {
@@ -287,9 +305,9 @@ export default function BuilderPage(): JSX.Element {
         onValidate={handleValidate}
         onActivate={handleActivate}
         onDeactivate={handleDeactivate}
+        onAutoLayout={handleAutoLayout}
         onBack={() => router.push('/')}
         onAddNode={handleAddNode}
-        onAutoOrganize={handleAutoOrganize}
       />
 
       <div className="flex-1 flex">
@@ -320,8 +338,8 @@ export default function BuilderPage(): JSX.Element {
         />
       </div>
 
-      {validationErrors.length > 0 && (
-        <ValidationPanel errors={validationErrors} onClose={() => setValidationErrors([])} />
+      {validationResult && (
+        <ValidationPanel result={validationResult} onClose={() => setValidationResult(null)} />
       )}
 
       <ExecutionConsole flowId={flowId} />
@@ -331,10 +349,10 @@ export default function BuilderPage(): JSX.Element {
 
 // Conversion helpers
 function convertToRFNodes(nodes: Node[]): RFNode[] {
-  return nodes.map((n, index) => ({
+  return nodes.map((n) => ({
     id: n.id,
     type: 'custom', // Always use custom node type for colored styling
-    position: { x: 100 + (index % 3) * 250, y: 100 + Math.floor(index / 3) * 150 },
+    position: { x: Math.random() * 500, y: Math.random() * 500 },
     data: { 
       ...n,
       id: n.id,
@@ -350,7 +368,6 @@ function convertToRFEdges(edges: Edge[]): RFEdge[] {
     source: e.source,
     target: e.target,
     label: e.label,
-    sourceHandle: (e as any).sourceHandle, // Support sourceHandle from templates
     data: e,
   }));
 }
@@ -370,6 +387,6 @@ function convertFromRFEdges(rfEdges: RFEdge[]): Edge[] {
     source: e.source!,
     target: e.target!,
     label: e.label as string | undefined,
-    conditionPath: e.sourceHandle || e.data?.conditionPath, // Use sourceHandle as conditionPath
+    conditionPath: e.data?.conditionPath,
   }));
 }

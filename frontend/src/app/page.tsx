@@ -60,26 +60,59 @@ export default function HomePage(): JSX.Element {
   }
 
   async function handleCreateFromTemplate(templateName: string): Promise<void> {
+    if (creating) {
+      console.log('Already creating a flow, please wait...');
+      return;
+    }
+
+    console.log('Starting template creation:', templateName);
     setCreating(true);
+    toast.info('Loading template...');
+    
     try {
-      const newFlow = await api.createFlow(`${templateName} (Copy)`);
-      
-      // Load template data
       const templatePath = `/templates/${templateName}.json`;
-      const response = await fetch(templatePath);
-      const templateData = await response.json();
+      console.log('Fetching template from:', templatePath);
       
-      // Update the flow with template data
+      const response = await fetch(templatePath);
+      console.log('Template fetch response:', response.status, response.ok);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to load template file (${response.status})`);
+      }
+      
+      const templateData = await response.json();
+      console.log('Template data loaded:', templateData);
+      
+      if (!templateData.nodes || !templateData.edges) {
+        throw new Error('Template is missing nodes or edges');
+      }
+
+      if (!Array.isArray(templateData.nodes) || !Array.isArray(templateData.edges)) {
+        throw new Error('Template nodes or edges are not arrays');
+      }
+
+      console.log(`Template has ${templateData.nodes.length} nodes and ${templateData.edges.length} edges`);
+
+      const flowName = templateData.name || `${templateName} (Copy)`;
+      console.log('Creating flow with name:', flowName);
+      
+      const newFlow = await api.createFlow(flowName);
+      console.log('Flow created with ID:', newFlow.id);
+      
+      console.log('Updating flow with template data...');
       await api.updateFlow(newFlow.id, {
+        name: flowName,
         nodes: templateData.nodes,
         edges: templateData.edges,
       });
       
-      toast.success('Flow created from template');
+      console.log('Flow updated successfully, navigating to builder...');
+      toast.success('Template loaded successfully');
+      
       router.push(`/builder/${newFlow.id}`);
-    } catch (error) {
-      toast.error('Failed to create flow from template');
-      console.error(error);
+    } catch (error: any) {
+      console.error('Template creation error:', error);
+      toast.error(error.message || 'Failed to load template');
     } finally {
       setCreating(false);
     }
@@ -102,10 +135,10 @@ export default function HomePage(): JSX.Element {
     },
     {
       id: 'abandoned-cart-recovery',
-      name: 'Abandoned Cart Recovery Flow',
-      description: 'Recovers abandoned checkouts with conditional logic - sends discount if cart value is high, otherwise sends reminder',
+      name: 'Abandoned Cart Recovery',
+      description: 'Reminds customers about items left in their cart with discount incentive after 1 hour and a final reminder after 1 day',
       icon: '🛒',
-      color: 'bg-amber-50 border-amber-200 hover:bg-amber-100',
+      color: 'bg-orange-50 border-orange-200 hover:bg-orange-100',
     },
   ];
 
@@ -125,8 +158,9 @@ export default function HomePage(): JSX.Element {
           <div className="flex gap-3">
             <button
               onClick={() => setShowTemplates(!showTemplates)}
-              className="border-2 border-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-md hover:shadow-lg"
+              className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
             >
+              <span>📋</span>
               {showTemplates ? 'Hide Templates' : 'Browse Templates'}
             </button>
             <button
@@ -143,7 +177,7 @@ export default function HomePage(): JSX.Element {
         {showTemplates && (
           <div className="mb-8 bg-white rounded-xl shadow-lg p-6 border border-gray-200">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">Flow Templates</h2>
+              <h2 className="text-2xl font-bold text-gray-900">📋 Flow Templates</h2>
               <span className="text-sm text-gray-500">{templates.length} templates available</span>
             </div>
             <p className="text-gray-600 mb-6">Start quickly with pre-built flow templates</p>
@@ -152,8 +186,12 @@ export default function HomePage(): JSX.Element {
               {templates.map((template) => (
                 <div
                   key={template.id}
-                  className={`border-2 rounded-lg p-6 transition-all duration-200 cursor-pointer ${template.color}`}
-                  onClick={() => handleCreateFromTemplate(template.id)}
+                  className={`border-2 rounded-lg p-6 transition-all duration-200 ${
+                    creating 
+                      ? 'opacity-50 cursor-not-allowed' 
+                      : `cursor-pointer hover:shadow-lg ${template.color}`
+                  }`}
+                  onClick={() => !creating && handleCreateFromTemplate(template.id)}
                 >
                   <div className="flex items-start gap-4">
                     <div className="text-4xl">{template.icon}</div>
@@ -164,10 +202,10 @@ export default function HomePage(): JSX.Element {
                       <p className="text-sm text-gray-600 mb-3">
                         {template.description}
                       </p>
-                      <button className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1">
-                        <span>Use this template</span>
-                        <span>→</span>
-                      </button>
+                      <div className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                        <span>{creating ? 'Loading...' : 'Use this template'}</span>
+                        {!creating && <span>→</span>}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -184,7 +222,8 @@ export default function HomePage(): JSX.Element {
           
           {flows.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500 text-lg mb-4">No flows yet</p>
+              <div className="text-6xl mb-4">📊</div>
+              <p className="text-gray-500 mb-4">No flows yet</p>
               <button
                 onClick={handleCreateFlow}
                 className="text-blue-600 hover:text-blue-700 font-medium"
@@ -217,7 +256,10 @@ export default function HomePage(): JSX.Element {
                 {flows.map((flow) => (
                   <tr key={flow.id} className="hover:bg-gray-50 transition-colors duration-150">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{flow.name}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-2xl">💬</div>
+                        <div className="text-sm font-medium text-gray-900">{flow.name}</div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -227,7 +269,7 @@ export default function HomePage(): JSX.Element {
                             : 'bg-gray-100 text-gray-800 border border-gray-200'
                         }`}
                       >
-                        {flow.active ? 'Active' : 'Inactive'}
+                        {flow.active ? '✓ Active' : '○ Inactive'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -244,13 +286,13 @@ export default function HomePage(): JSX.Element {
                         onClick={() => router.push(`/builder/${flow.id}`)}
                         className="text-blue-600 hover:text-blue-900 mr-4 font-medium hover:underline"
                       >
-                        Edit
+                        ✏️ Edit
                       </button>
                       <button
                         onClick={() => handleDelete(flow.id)}
                         className="text-red-600 hover:text-red-900 font-medium hover:underline"
                       >
-                        Delete
+                        🗑️ Delete
                       </button>
                     </td>
                   </tr>

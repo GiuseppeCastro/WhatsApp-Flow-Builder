@@ -3,7 +3,10 @@ import type { Flow, ValidationResult, ExecutionHistory, TriggerPayload } from '.
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const url = `${API_BASE}${path}`;
+  console.log('API Request:', options?.method || 'GET', url);
+  
+  const res = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
       ...options?.headers,
@@ -11,10 +14,15 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   });
 
+  console.log('API Response:', res.status, res.statusText);
+
   const data = await res.json();
+  console.log('API Data:', data);
 
   if (!res.ok) {
-    throw new Error(data.error?.message || 'Request failed');
+    const errorMsg = data.error?.message || `Request failed with status ${res.status}`;
+    console.error('API Error:', errorMsg, data);
+    throw new Error(errorMsg);
   }
 
   return data.data as T;

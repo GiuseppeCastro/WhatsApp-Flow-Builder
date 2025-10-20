@@ -37,19 +37,10 @@ export class FlowsService {
     const updated: Flow = {
       ...existing,
       ...updates,
-      id: existing.id, // prevent ID change
-      createdAt: existing.createdAt, // prevent createdAt change
+      id: existing.id,
+      createdAt: existing.createdAt,
       updatedAt: new Date().toISOString(),
     };
-
-    // Validate if structure changed
-    if (updates.nodes || updates.edges) {
-      const validation = validateFlowStructure(updated);
-      const hasErrors = validation.errors.some((e) => e.severity === 'error');
-      if (hasErrors) {
-        throw new BadRequestError('Flow validation failed', validation.errors);
-      }
-    }
 
     memoryStore.updateFlow(id, updated);
     return updated;

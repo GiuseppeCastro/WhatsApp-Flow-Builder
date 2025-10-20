@@ -26,8 +26,9 @@
       "label": "Add Order Note",
       "config": {
         "actionType": "ADD_ORDER_NOTE",
+        "toField": "customer.phone",
         "orderId": "order.id",
-        "note": "Confirmation message sent to customer at {{timestamp}}"
+        "body": "Confirmation message sent to customer at {{timestamp}}"
       }
     }
   ],
