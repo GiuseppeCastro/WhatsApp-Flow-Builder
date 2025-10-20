@@ -1,0 +1,334 @@
+{
+  "name": "Abandoned Cart Recovery Flow",
+  "description": "Recovers abandoned checkouts with conditional logic - sends discount if cart value is high, otherwise sends reminder",
+  "nodes": [
+    {
+      "id": "trigger_1",
+      "type": "TRIGGER",
+      "label": "Abandoned Checkout",
+      "config": {
+        "triggerType": "ABANDONED_CHECKOUT"
+      }
+    },
+    {
+      "id": "delay_1",
+      "type": "DELAY",
+      "label": "Wait 1 Hour",
+      "config": {
+        "delay": {
+          "amount": 1,
+          "unit": "hours"
+        }
+      }
+    },
+    {
+      "id": "condition_1",
+      "type": "CONDITION",
+      "label": "Cart Value > $100?",
+      "config": {
+        "logic": {
+          "type": "AND",
+          "clauses": [
+            {
+              "left": "cart.total",
+              "op": "greater_than",
+              "right": 100
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "action_yes_1",
+      "type": "ACTION",
+      "label": "Send Premium Discount",
+      "config": {
+        "actionType": "SEND_MESSAGE",
+        "toField": "customer.phone",
+        "template": "abandoned_cart_premium",
+        "body": "Hi {{customer.name}}! 🎁\n\nYou left ${{cart.total}} in your cart. Complete your order now and get 15% OFF with code: SAVE15\n\nYour cart:\n{{cart.items}}\n\nShop now: {{cart.link}}"
+      }
+    },
+    {
+      "id": "action_yes_2",
+      "type": "ACTION",
+      "label": "Add Order Note - Premium",
+      "config": {
+        "actionType": "ADD_ORDER_NOTE",
+        "orderId": "cart.id",
+        "note": "Sent premium 15% discount for high-value cart"
+      }
+    },
+    {
+      "id": "action_no_1",
+      "type": "ACTION",
+      "label": "Send Standard Reminder",
+      "config": {
+        "actionType": "SEND_MESSAGE",
+        "toField": "customer.phone",
+        "template": "abandoned_cart_standard",
+        "body": "Hi {{customer.name}}! 👋\n\nDon't forget about the items in your cart!\n\n{{cart.items}}\n\nComplete your purchase: {{cart.link}}"
+      }
+    },
+    {
+      "id": "action_no_2",
+      "type": "ACTION",
+      "label": "Add Order Note - Standard",
+      "config": {
+        "actionType": "ADD_ORDER_NOTE",
+        "orderId": "cart.id",
+        "note": "Sent standard cart reminder"
+      }
+    },
+    {
+      "id": "delay_2",
+      "type": "DELAY",
+      "label": "Wait 24 Hours",
+      "config": {
+        "delay": {
+          "amount": 24,
+          "unit": "hours"
+        }
+      }
+    },
+    {
+      "id": "condition_2",
+      "type": "CONDITION",
+      "label": "Still Not Purchased?",
+      "config": {
+        "logic": {
+          "type": "AND",
+          "clauses": [
+            {
+              "left": "order.status",
+              "op": "equals",
+              "right": "abandoned"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "action_final_yes",
+      "type": "ACTION",
+      "label": "Send Final Offer",
+      "config": {
+        "actionType": "SEND_MESSAGE",
+        "toField": "customer.phone",
+        "body": "⏰ Last chance, {{customer.name}}!\n\nYour cart expires in 24 hours. Get 20% OFF - our best offer!\n\nUse code: LASTCHANCE20\n\n{{cart.link}}"
+      }
+    },
+    {
+      "id": "end_final_yes",
+      "type": "END",
+      "label": "End - Final Offer Sent"
+    },
+    {
+      "id": "action_final_no",
+      "type": "ACTION",
+      "label": "Mark as Converted",
+      "config": {
+        "actionType": "ADD_CUSTOMER_NOTE",
+        "customerId": "customer.id",
+        "note": "Successfully recovered abandoned cart - customer completed purchase"
+      }
+    },
+    {
+      "id": "end_final_no",
+      "type": "END",
+      "label": "End - Converted"
+    },
+    {
+      "id": "end_yes_path",
+      "type": "END",
+      "label": "End - Premium Path"
+    },
+    {
+      "id": "end_no_path",
+      "type": "END",
+      "label": "End - Standard Path"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "trigger_1",
+      "target": "delay_1"
+    },
+    {
+      "id": "e2",
+      "source": "delay_1",
+      "target": "condition_1"
+    },
+    {
+      "id": "e3",
+      "source": "condition_1",
+      "target": "action_yes_1",
+      "sourceHandle": "yes",
+      "conditionPath": "yes",
+      "label": "Yes"
+    },
+    {
+      "id": "e4",
+      "source": "condition_1",
+      "target": "action_no_1",
+      "sourceHandle": "no",
+      "conditionPath": "no",
+      "label": "No"
+    },
+    {
+      "id": "e5",
+      "source": "action_yes_1",
+      "target": "action_yes_2"
+    },
+    {
+      "id": "e6",
+      "source": "action_yes_2",
+      "target": "end_yes_path"
+    },
+    {
+      "id": "e7",
+      "source": "action_no_1",
+      "target": "action_no_2"
+    },
+    {
+      "id": "e8",
+      "source": "action_no_2",
+      "target": "delay_2"
+    },
+    {
+      "id": "e9",
+      "source": "delay_2",
+      "target": "condition_2"
+    },
+    {
+      "id": "e10",
+      "source": "condition_2",
+      "target": "action_final_yes",
+      "sourceHandle": "yes",
+      "conditionPath": "yes",
+      "label": "Yes"
+    },
+    {
+      "id": "e11",
+      "source": "condition_2",
+      "target": "action_final_no",
+      "sourceHandle": "no",
+      "conditionPath": "no",
+      "label": "No"
+    },
+    {
+      "id": "e12",
+      "source": "action_final_yes",
+      "target": "end_final_yes"
+    },
+    {
+      "id": "e13",
+      "source": "action_final_no",
+      "target": "end_final_no"
+    }
+  ],
+  "reactFlowData": {
+    "nodes": [
+      {
+        "id": "trigger_1",
+        "type": "custom",
+        "position": { "x": 400, "y": 50 },
+        "data": { "id": "trigger_1", "type": "TRIGGER", "label": "Abandoned Checkout" }
+      },
+      {
+        "id": "delay_1",
+        "type": "custom",
+        "position": { "x": 400, "y": 150 },
+        "data": { "id": "delay_1", "type": "DELAY", "label": "Wait 1 Hour" }
+      },
+      {
+        "id": "condition_1",
+        "type": "custom",
+        "position": { "x": 400, "y": 260 },
+        "data": { "id": "condition_1", "type": "CONDITION", "label": "Cart Value > $100?" }
+      },
+      {
+        "id": "action_yes_1",
+        "type": "custom",
+        "position": { "x": 200, "y": 380 },
+        "data": { "id": "action_yes_1", "type": "ACTION", "label": "Send Premium Discount" }
+      },
+      {
+        "id": "action_yes_2",
+        "type": "custom",
+        "position": { "x": 200, "y": 480 },
+        "data": { "id": "action_yes_2", "type": "ACTION", "label": "Add Order Note - Premium" }
+      },
+      {
+        "id": "end_yes_path",
+        "type": "custom",
+        "position": { "x": 200, "y": 580 },
+        "data": { "id": "end_yes_path", "type": "END", "label": "End - Premium Path" }
+      },
+      {
+        "id": "action_no_1",
+        "type": "custom",
+        "position": { "x": 600, "y": 380 },
+        "data": { "id": "action_no_1", "type": "ACTION", "label": "Send Standard Reminder" }
+      },
+      {
+        "id": "action_no_2",
+        "type": "custom",
+        "position": { "x": 600, "y": 480 },
+        "data": { "id": "action_no_2", "type": "ACTION", "label": "Add Order Note - Standard" }
+      },
+      {
+        "id": "delay_2",
+        "type": "custom",
+        "position": { "x": 600, "y": 580 },
+        "data": { "id": "delay_2", "type": "DELAY", "label": "Wait 24 Hours" }
+      },
+      {
+        "id": "condition_2",
+        "type": "custom",
+        "position": { "x": 600, "y": 700 },
+        "data": { "id": "condition_2", "type": "CONDITION", "label": "Still Not Purchased?" }
+      },
+      {
+        "id": "action_final_yes",
+        "type": "custom",
+        "position": { "x": 450, "y": 820 },
+        "data": { "id": "action_final_yes", "type": "ACTION", "label": "Send Final Offer" }
+      },
+      {
+        "id": "end_final_yes",
+        "type": "custom",
+        "position": { "x": 450, "y": 920 },
+        "data": { "id": "end_final_yes", "type": "END", "label": "End - Final Offer Sent" }
+      },
+      {
+        "id": "action_final_no",
+        "type": "custom",
+        "position": { "x": 750, "y": 820 },
+        "data": { "id": "action_final_no", "type": "ACTION", "label": "Mark as Converted" }
+      },
+      {
+        "id": "end_final_no",
+        "type": "custom",
+        "position": { "x": 750, "y": 920 },
+        "data": { "id": "end_final_no", "type": "END", "label": "End - Converted" }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "source": "trigger_1", "target": "delay_1" },
+      { "id": "e2", "source": "delay_1", "target": "condition_1" },
+      { "id": "e3", "source": "condition_1", "target": "action_yes_1", "sourceHandle": "yes", "label": "Yes", "style": { "stroke": "#22c55e" } },
+      { "id": "e4", "source": "condition_1", "target": "action_no_1", "sourceHandle": "no", "label": "No", "style": { "stroke": "#ef4444" } },
+      { "id": "e5", "source": "action_yes_1", "target": "action_yes_2" },
+      { "id": "e6", "source": "action_yes_2", "target": "end_yes_path" },
+      { "id": "e7", "source": "action_no_1", "target": "action_no_2" },
+      { "id": "e8", "source": "action_no_2", "target": "delay_2" },
+      { "id": "e9", "source": "delay_2", "target": "condition_2" },
+      { "id": "e10", "source": "condition_2", "target": "action_final_yes", "sourceHandle": "yes", "label": "Yes", "style": { "stroke": "#22c55e" } },
+      { "id": "e11", "source": "condition_2", "target": "action_final_no", "sourceHandle": "no", "label": "No", "style": { "stroke": "#ef4444" } },
+      { "id": "e12", "source": "action_final_yes", "target": "end_final_yes" },
+      { "id": "e13", "source": "action_final_no", "target": "end_final_no" }
+    ]
+  }
+}

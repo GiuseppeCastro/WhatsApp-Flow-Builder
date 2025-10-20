@@ -1,0 +1,15 @@
+{
+  "name": "whatsapp-flow-builder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WhatsApp Marketing Automation Flow Builder MVP",
+  "scripts": {
+    "setup": "echo 'Installing backend...' && cd backend && npm install && cd .. && echo 'Installing frontend...' && cd frontend && npm install && cd .. && echo 'Setup complete! Run: npm run dev'",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

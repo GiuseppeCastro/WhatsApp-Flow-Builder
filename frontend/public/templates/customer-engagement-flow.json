@@ -1,0 +1,120 @@
+{
+  "name": "Customer Engagement Flow",
+  "description": "Sends a personalized welcome message to new customers, waits 2 days, then sends a follow-up based on order status",
+  "nodes": [
+    {
+      "id": "trigger_1",
+      "type": "TRIGGER",
+      "label": "Customer Signup",
+      "config": {
+        "triggerType": "CUSTOMER_SIGNUP"
+      }
+    },
+    {
+      "id": "action_1",
+      "type": "ACTION",
+      "label": "Send Welcome Message",
+      "config": {
+        "actionType": "SEND_MESSAGE",
+        "toField": "customer.phone",
+        "body": "Welcome to our store, {{customer.name}}! 🎊\n\nWe're excited to have you here. Get 10% off your first purchase with code: WELCOME10"
+      }
+    },
+    {
+      "id": "action_2",
+      "type": "ACTION",
+      "label": "Add Customer Note",
+      "config": {
+        "actionType": "ADD_CUSTOMER_NOTE",
+        "customerId": "customer.id",
+        "note": "Welcome message sent - enrolled in engagement flow"
+      }
+    },
+    {
+      "id": "delay_1",
+      "type": "DELAY",
+      "label": "Wait 2 Days",
+      "config": {
+        "amount": 2,
+        "unit": "days"
+      }
+    },
+    {
+      "id": "condition_1",
+      "type": "CONDITION",
+      "label": "Has Made Purchase?",
+      "config": {
+        "logic": {
+          "type": "AND",
+          "clauses": [
+            {
+              "left": "customer.orders",
+              "op": "greaterThan",
+              "right": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "action_3",
+      "type": "ACTION",
+      "label": "Thank You Message",
+      "config": {
+        "actionType": "SEND_MESSAGE",
+        "toField": "customer.phone",
+        "body": "Hi {{customer.name}}! 🙏\n\nThank you for your recent purchase. We hope you're loving it!\n\nNeed help? Just reply to this message."
+      }
+    },
+    {
+      "id": "action_4",
+      "type": "ACTION",
+      "label": "Reminder Message",
+      "config": {
+        "actionType": "SEND_MESSAGE",
+        "toField": "customer.phone",
+        "body": "Hi {{customer.name}}! 👋\n\nDon't forget to use your WELCOME10 code for 10% off.\n\nBrowse our latest collection now!"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_1",
+      "source": "trigger_1",
+      "target": "action_1",
+      "label": ""
+    },
+    {
+      "id": "edge_2",
+      "source": "action_1",
+      "target": "action_2",
+      "label": ""
+    },
+    {
+      "id": "edge_3",
+      "source": "action_2",
+      "target": "delay_1",
+      "label": ""
+    },
+    {
+      "id": "edge_4",
+      "source": "delay_1",
+      "target": "condition_1",
+      "label": ""
+    },
+    {
+      "id": "edge_5",
+      "source": "condition_1",
+      "target": "action_3",
+      "label": "true",
+      "conditionPath": "true"
+    },
+    {
+      "id": "edge_6",
+      "source": "condition_1",
+      "target": "action_4",
+      "label": "false",
+      "conditionPath": "false"
+    }
+  ]
+}

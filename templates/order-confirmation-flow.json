@@ -1,0 +1,48 @@
+{
+  "name": "Order Confirmation Flow",
+  "description": "Sends a confirmation message when a new order is placed and adds a note to the order",
+  "nodes": [
+    {
+      "id": "trigger_1",
+      "type": "TRIGGER",
+      "label": "New Order Received",
+      "config": {
+        "triggerType": "NEW_ORDER"
+      }
+    },
+    {
+      "id": "action_1",
+      "type": "ACTION",
+      "label": "Send Confirmation Message",
+      "config": {
+        "actionType": "SEND_MESSAGE",
+        "toField": "customer.phone",
+        "body": "Hello {{customer.name}}! 🎉\n\nThank you for your order #{{order.number}}!\n\nTotal: ${{order.total}}\n\nWe'll notify you when it's ready for shipping."
+      }
+    },
+    {
+      "id": "action_2",
+      "type": "ACTION",
+      "label": "Add Order Note",
+      "config": {
+        "actionType": "ADD_ORDER_NOTE",
+        "orderId": "order.id",
+        "note": "Confirmation message sent to customer at {{timestamp}}"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_1",
+      "source": "trigger_1",
+      "target": "action_1",
+      "label": ""
+    },
+    {
+      "id": "edge_2",
+      "source": "action_1",
+      "target": "action_2",
+      "label": ""
+    }
+  ]
+}
