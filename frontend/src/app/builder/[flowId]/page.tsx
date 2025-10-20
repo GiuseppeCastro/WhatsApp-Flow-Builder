@@ -245,23 +245,26 @@ export default function BuilderPage(): JSX.Element {
       nodesByLevel[level].push(node);
     });
 
+    // Layout parameters
     const HORIZONTAL_SPACING = 250;
     const VERTICAL_SPACING = 150;
     const START_X = 100;
     const START_Y = 100;
 
+    // Position nodes
     const organizedNodes = nodes.map(node => {
       const level = levels[node.id] ?? maxLevel + 1;
       const nodesInLevel = nodesByLevel[level];
       const indexInLevel = nodesInLevel.indexOf(node);
       const totalInLevel = nodesInLevel.length;
 
+      // Center nodes in their level
       const offsetX = (totalInLevel - 1) * HORIZONTAL_SPACING / 2;
       
       return {
         ...node,
         position: {
-          x: START_X + (indexInLevel * HORIZONTAL_SPACING) - offsetX + (level * 50),
+          x: START_X + (indexInLevel * HORIZONTAL_SPACING) - offsetX + (level * 50), // Slight offset per level
           y: START_Y + (level * VERTICAL_SPACING),
         },
       };
@@ -273,7 +276,9 @@ export default function BuilderPage(): JSX.Element {
 
   if (!flow) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }  return (
+  }
+
+  return (
     <div className="h-screen flex flex-col">
       <Toolbar
         flow={flow}
@@ -324,16 +329,17 @@ export default function BuilderPage(): JSX.Element {
   );
 }
 
+// Conversion helpers
 function convertToRFNodes(nodes: Node[]): RFNode[] {
   return nodes.map((n, index) => ({
     id: n.id,
-    type: 'custom',
+    type: 'custom', // Always use custom node type for colored styling
     position: { x: 100 + (index % 3) * 250, y: 100 + Math.floor(index / 3) * 150 },
     data: { 
       ...n,
       id: n.id,
       label: n.label,
-      type: n.type,
+      type: n.type, // Pass the actual node type (TRIGGER, ACTION, etc.) in data
     },
   }));
 }
@@ -344,7 +350,7 @@ function convertToRFEdges(edges: Edge[]): RFEdge[] {
     source: e.source,
     target: e.target,
     label: e.label,
-    sourceHandle: (e as any).sourceHandle,
+    sourceHandle: (e as any).sourceHandle, // Support sourceHandle from templates
     data: e,
   }));
 }
@@ -364,6 +370,6 @@ function convertFromRFEdges(rfEdges: RFEdge[]): Edge[] {
     source: e.source!,
     target: e.target!,
     label: e.label as string | undefined,
-    conditionPath: e.sourceHandle || e.data?.conditionPath,
+    conditionPath: e.sourceHandle || e.data?.conditionPath, // Use sourceHandle as conditionPath
   }));
 }
